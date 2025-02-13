@@ -8,7 +8,7 @@ const useFontFormatting = true;
 module.exports = {
   name: 'ai',
   description: 'Interagissez avec Orochi AI et obtenez une image correspondante.',
-  author: 'Arn & coffee',
+  author: 'Arn & MakoyQx',
 
   async execute(senderId, args) {
     const pageAccessToken = token;
@@ -34,47 +34,88 @@ module.exports = {
   },
 };
 
+// Traitement de la réponse AI + génération d'images
 const handleChatResponse = async (senderId, input, pageAccessToken) => {
   const apiUrl = "https://kaiz-apis.gleeze.com/api/bert-ai";
+  let aiResponse = "Je réfléchis..."; // Réponse par défaut au cas où l'API ne répond pas
 
   try {
     const { data } = await axios.get(apiUrl, { params: { q: input, uid: senderId } });
-    const response = data.response;
-
-    const formattedMessage = useFontFormatting ? formatResponse(response) : response;
-    await sendMessage(senderId, { text: formattedMessage }, pageAccessToken);
-
-    // Appel automatique de la recherche d'images
-    await searchPinterest(senderId, input, pageAccessToken);
-
+    if (data.response && data.response.trim() !== "") {
+      aiResponse = data.response;
+    }
   } catch (error) {
-    console.error('Erreur AI:', error.message);
+    console.error('Erreur AI détectée, mais le bot continue.');
+  }
 
-    const errorMessage = "⚠️ Veuillez patienter un instant !";
-    const formattedMessage = useFontFormatting ? formatResponse(errorMessage) : errorMessage;
-    await sendMessage(senderId, { text: formattedMessage }, pageAccessToken);
+  // Envoi de la réponse AI en plusieurs parties si nécessaire
+  const chunks = splitMessage(aiResponse);
+  for (const chunk of chunks) {
+    const formattedChunk = useFontFormatting ? formatResponse(chunk) : chunk;
+    await sendMessage(senderId, { text: formattedChunk }, pageAccessToken);
+  }
+
+  let pinterestImageUrl = null;
+  let fluxImageUrls = [];
+
+  try {
+    pinterestImageUrl = await searchPinterest(input);
+  } catch (error) {
+    console.error('Erreur Pinterest détectée, mais le bot continue.');
+  }
+
+  try {
+    fluxImageUrls.push(await generateImageWithFlux(input));
+  } catch (error) {
+    console.error('Erreur Flux (1ère image), mais le bot continue.');
+  }
+
+  if (!pinterestImageUrl) {
+    try {
+      fluxImageUrls.push(await generateImageWithFlux(input));
+    } catch (error) {
+      console.error('Erreur Flux (2ème image), mais le bot continue.');
+    }
+  }
+
+  // Envoi des images
+  if (pinterestImageUrl) {
+    await sendMessage(senderId, { 
+      attachment: { type: 'image', payload: { url: pinterestImageUrl } } 
+    }, pageAccessToken);
+  }
+
+  for (const url of fluxImageUrls) {
+    if (url) {
+      await sendMessage(senderId, { 
+        attachment: { type: 'image', payload: { url } } 
+      }, pageAccessToken);
+    }
   }
 };
 
+// Génération d'image avec Flux
+const generateImageWithFlux = async (prompt) => {
+  return `https://kaiz-apis.gleeze.com/api/imagine?prompt=${encodeURIComponent(prompt)}`;
+};
+
 // Recherche d'image sur Pinterest
-const searchPinterest = async (senderId, searchQuery, pageAccessToken) => {
+const searchPinterest = async (searchQuery) => {
   try {
     const { data } = await axios.get(`https://hiroshi-api.onrender.com/image/pinterest?search=${encodeURIComponent(searchQuery)}`);
-    const selectedImages = data.data.slice(0, 2);
-
-    if (selectedImages.length === 0) {
-      await sendMessage(senderId, { text: `Aucune image trouvée pour "${searchQuery}".` }, pageAccessToken);
-      return;
-    }
-
-    for (const url of selectedImages) {
-      await sendMessage(senderId, { attachment: { type: 'image', payload: { url } } }, pageAccessToken);
-    }
-
+    return data.data.length > 0 ? data.data[0] : null;
   } catch (error) {
-    console.error('Erreur Pinterest:', error.message);
-    await sendMessage(senderId, { text: 'Erreur: Impossible de récupérer des images.' }, pageAccessToken);
+    return null;
   }
+};
+
+// Fonction pour découper un message trop long en plusieurs parties
+const splitMessage = (text, maxLength = 2000) => {
+  const chunks = [];
+  for (let i = 0; i < text.length; i += maxLength) {
+    chunks.push(text.substring(i, i + maxLength));
+  }
+  return chunks;
 };
 
 // Mise en forme du texte (gras)
