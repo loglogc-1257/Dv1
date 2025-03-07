@@ -4,6 +4,9 @@ const fs = require('fs');
 
 const token = fs.readFileSync('token.txt', 'utf8').trim();
 
+// Objet pour stocker les surnoms définis par les utilisateurs
+const userNicknames = {};
+
 module.exports = {
   name: 'rank',
   description: "Affiche le classement d'un utilisateur.",
@@ -13,34 +16,36 @@ module.exports = {
     const pageAccessToken = token;
 
     try {
-      // Obtenir le nom de l'utilisateur depuis l'API Graph de Facebook
-      const userInfo = await axios.get(`https://graph.facebook.com/${senderId}?fields=first_name,last_name&access_token=${pageAccessToken}`);
-      const firstName = userInfo.data.first_name || "Utilisateur";
-      const lastName = userInfo.data.last_name || "";
-      const nickname = `${firstName} ${lastName}`.trim(); // Construire le nom complet
+      console.log(`🔹 Demande de classement pour ${senderId}`);
+
+      // Vérifier si l'utilisateur a déjà défini un surnom
+      let nickname = userNicknames[senderId] || `Utilisateur_${senderId}`;
+
+      // Si l'utilisateur entre un pseudo avec la commande (!rank pseudo)
+      if (args.length > 0) {
+        nickname = args.join(" ").trim();
+        userNicknames[senderId] = nickname; // Sauvegarder le surnom
+        console.log(`📝 Surnom défini : ${nickname}`);
+      }
 
       const apiUrl = "https://kaiz-apis.gleeze.com/api/rank";
 
-      // Simuler des valeurs aléatoires pour le niveau, le classement et l'XP
+      // Génération de valeurs aléatoires pour le niveau et l'XP
       const level = Math.floor(Math.random() * 200) + 1;
       const rank = Math.floor(Math.random() * 1000) + 1;
       const xp = Math.floor(Math.random() * 100000) + 1;
       const requiredXP = xp + Math.floor(Math.random() * 50000) + 1000;
       const status = "online";
-      const avatar = `https://graph.facebook.com/${senderId}/picture?type=large`; // Photo de profil Facebook
+      const avatar = `https://graph.facebook.com/${senderId}/picture?type=large`; // Photo Facebook
+
+      console.log(`📡 Envoi de la requête à l'API Rank...`);
 
       // Appel à l'API Rank
-      const { data } = await axios.get(apiUrl, {
-        params: {
-          level,
-          rank,
-          xp,
-          requiredXP,
-          nickname,
-          status,
-          avatar
-        }
+      const response = await axios.get(apiUrl, {
+        params: { level, rank, xp, requiredXP, nickname, status, avatar }
       });
+
+      console.log(`✔️ Réponse reçue de l'API Rank`);
 
       // Message formaté
       const rankMessage = 
@@ -53,8 +58,9 @@ module.exports = {
 
       await sendMessage(senderId, { text: rankMessage }, pageAccessToken);
     } catch (error) {
-      console.error('Erreur Rank:', error.message);
-      await sendMessage(senderId, { text: "⚠️ Erreur lors de la récupération du classement." }, pageAccessToken);
+      console.error('❌ Erreur Rank:', error.message);
+
+      await sendMessage(senderId, { text: "⚠️ Erreur lors de la récupération du classement. Réessayez plus tard !" }, pageAccessToken);
     }
   },
 };
