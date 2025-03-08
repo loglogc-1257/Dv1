@@ -1,43 +1,30 @@
 const axios = require('axios');
 const { sendMessage } = require('../handles/sendMessage');
+const fs = require('fs');
 
-// Function to get the image URL from a Facebook message reply
-const getImageUrl = async (event, token) => {
-  const mid = event?.message?.reply_to?.mid;
-  if (!mid) return null;
-  try {
-    const { data } = await axios.get(`https://graph.facebook.com/v21.0/${mid}/attachments`, {
-      params: { access_token: token }
-    });
-    return data?.data?.[0]?.image_data?.url || null;
-  } catch (err) {
-    console.error("Image URL fetch error:", err);
-    return null;
-  }
-};
+const token = fs.readFileSync('token.txt', 'utf8').trim();
 
 module.exports = {
   name: 'imgur',
-  description: 'Upload images to Imgur using a specific API.',
-  usage: '-imgur (reply to an image)',
+  description: "Télécharge une image sur Imgur.",
+  author: 'Arn & coffee',
 
-  async execute(senderId, args, pageAccessToken, event) {
-    const imageUrl = await getImageUrl(event, pageAccessToken);
-    if (!imageUrl) return sendMessage(senderId, { text: 'No image found to upload. Please reply to an image.' }, pageAccessToken);
+  async execute(senderId, args) {
+    const pageAccessToken = token;
+    const imageUrl = args[0];
 
-    const apiUrl = `https://api.kenliejugarap.com/imgur/?mediaLink=${encodeURIComponent(imageUrl)}`;
+    if (!imageUrl) {
+      return await sendMessage(senderId, { text: "❌ Utilisation : !imgur [URL de l'image]" }, pageAccessToken);
+    }
+
+    const apiUrl = `https://kaiz-apis.gleeze.com/api/imgur?url=${encodeURIComponent(imageUrl)}`;
 
     try {
-      const response = await axios.get(apiUrl);
-      if (response.data.status) {
-        const imgUrl = response.data.message;
-        await sendMessage(senderId, { text: `Image uploaded to Imgur: ${imgUrl}` }, pageAccessToken);
-      } else {
-        sendMessage(senderId, { text: 'Failed to upload image to Imgur.' }, pageAccessToken);
-      }
+      const { data } = await axios.get(apiUrl);
+      await sendMessage(senderId, { text: `🖼️ Image uploadée : ${data.link}` }, pageAccessToken);
     } catch (error) {
-      console.error('Error uploading image:', error);
-      sendMessage(senderId, { text: 'An error occurred while uploading the image.' }, pageAccessToken);
+      console.error('❌ Erreur API Imgur:', error.message);
+      await sendMessage(senderId, { text: "⚠️ Une erreur s'est produite avec Imgur." }, pageAccessToken);
     }
-  }
+  },
 };

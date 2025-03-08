@@ -1,59 +1,30 @@
 const axios = require('axios');
-const fs = require('fs');
 const { sendMessage } = require('../handles/sendMessage');
+const fs = require('fs');
 
-const tokenPath = './token.txt';
-const pageAccessToken = fs.readFileSync(tokenPath, 'utf8').trim();
+const token = fs.readFileSync('token.txt', 'utf8').trim();
 
 module.exports = {
   name: 'ocr',
-  description: 'Extrait le texte d’une image hébergée sur Imgur.',
-  usage: '-ocr [URL_IMGUR]',
-  author: 'coffee',
+  description: "Effectue une reconnaissance de texte sur une image.",
+  author: 'Arn & coffee',
 
   async execute(senderId, args) {
-    // Vérifier si un argument est fourni
-    if (!args || !Array.isArray(args) || args.length === 0) {
-      await sendMessage(senderId, { text: '❌ Veuillez fournir une URL Imgur.' }, pageAccessToken);
-      return;
-    }
-
+    const pageAccessToken = token;
     const imageUrl = args[0];
 
-    // Vérifier si l'URL provient bien d'Imgur
-    if (!imageUrl.match(/^https?:\/\/i\.imgur\.com\/.+\.(jpg|jpeg|png|webp|gif)$/i)) {
-      await sendMessage(senderId, { text: '❌ L\'URL doit être une image hébergée sur Imgur (ex: https://i.imgur.com/xxxxx.jpg).' }, pageAccessToken);
-      return;
+    if (!imageUrl) {
+      return await sendMessage(senderId, { text: "❌ Utilisation : !ocr [URL de l'image]" }, pageAccessToken);
     }
+
+    const apiUrl = `https://kaiz-apis.gleeze.com/api/ocr?url=${encodeURIComponent(imageUrl)}`;
 
     try {
-      // Télécharger l'image depuis Imgur
-      const imageResponse = await axios.get(imageUrl, { responseType: 'arraybuffer' });
-      const imageBase64 = Buffer.from(imageResponse.data, 'binary').toString('base64');
-
-      // Envoyer l'image à l’API OpenAI pour l’OCR
-      const ocrResponse = await axios.post(
-        'https://api.openai.com/v1/images/vision',
-        {
-          image: `data:image/jpeg;base64,${imageBase64}`,
-          task: "ocr"
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${pageAccessToken}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-
-      const extractedText = ocrResponse.data.text?.trim() || "❌ Aucun texte détecté sur l'image.";
-
-      // Envoyer la réponse à l'utilisateur sur Messenger
-      await sendMessage(senderId, { text: `📝 **Texte extrait :**\n\n${extractedText}` }, pageAccessToken);
-
+      const { data } = await axios.get(apiUrl);
+      await sendMessage(senderId, { text: `📜 Texte extrait : ${data.text}` }, pageAccessToken);
     } catch (error) {
-      console.error('❌ Erreur OCR:', error);
-      await sendMessage(senderId, { text: '⚠️ Erreur : Impossible d\'extraire le texte de l\'image pour le moment.' }, pageAccessToken);
+      console.error('❌ Erreur API OCR:', error.message);
+      await sendMessage(senderId, { text: "⚠️ Une erreur s'est produite avec OCR." }, pageAccessToken);
     }
-  }
+  },
 };
