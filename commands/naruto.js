@@ -3,28 +3,37 @@ const { sendMessage } = require('../handles/sendMessage');
 const fs = require('fs');
 
 const token = fs.readFileSync('token.txt', 'utf8').trim();
+const activeUsers = {};
 
 module.exports = {
   name: 'naruto',
-  description: "Pose une question à Naruto Uzumaki.",
+  description: "Active ou désactive les réponses de Naruto.",
   author: 'Arn & coffee',
 
   async execute(senderId, args) {
     const pageAccessToken = token;
-    const question = args.join(" ").trim();
+    const command = args.join(" ").toLowerCase().trim();
 
-    if (!question) {
-      return await sendMessage(senderId, { text: "❌ Utilisation : !naruto [Votre question]" }, pageAccessToken);
+    if (command === "naruto on") {
+      activeUsers[senderId] = true;
+      return await sendMessage(senderId, { text: "🍜 Naruto est maintenant activé ! Posez-moi vos questions." }, pageAccessToken);
     }
 
-    const apiUrl = `https://kaiz-apis.gleeze.com/api/naruto?ask=${encodeURIComponent(question)}&uid=${senderId}`;
+    if (command === "naruto off") {
+      delete activeUsers[senderId];
+      return await sendMessage(senderId, { text: "🛑 Naruto est maintenant désactivé." }, pageAccessToken);
+    }
+
+    if (!activeUsers[senderId]) return;
+
+    const apiUrl = `https://kaiz-apis.gleeze.com/api/naruto?ask=${encodeURIComponent(command)}&uid=${senderId}&lang=fr`;
 
     try {
       const { data } = await axios.get(apiUrl);
-      await sendMessage(senderId, { text: `🍜 Naruto dit : ${data.response}` }, pageAccessToken);
+      await sendMessage(senderId, { text: `🟠 Naruto : ${data.response}` }, pageAccessToken);
     } catch (error) {
       console.error('❌ Erreur API Naruto:', error.message);
-      await sendMessage(senderId, { text: "⚠️ Erreur avec Naruto, réessayez plus tard." }, pageAccessToken);
+      await sendMessage(senderId, { text: "⚠️ Une erreur s'est produite avec Naruto." }, pageAccessToken);
     }
   },
 };
