@@ -3,7 +3,19 @@ const { sendMessage } = require('../handles/sendMessage');
 const fs = require('fs');
 
 const token = fs.readFileSync('token.txt', 'utf8').trim();
-const activeUsers = {};
+const stateFile = 'senku_state.json';
+
+const loadState = () => {
+  try {
+    return JSON.parse(fs.readFileSync(stateFile, 'utf8'));
+  } catch {
+    return {};
+  }
+};
+
+const saveState = (state) => {
+  fs.writeFileSync(stateFile, JSON.stringify(state, null, 2));
+};
 
 module.exports = {
   name: 'senku',
@@ -13,15 +25,18 @@ module.exports = {
   async execute(senderId, args) {
     const pageAccessToken = token;
     const command = args.join(" ").toLowerCase().trim();
+    let activeUsers = loadState();
 
     if (command === "senku on") {
       activeUsers[senderId] = true;
-      return await sendMessage(senderId, { text: "🧪 Senku est maintenant activé ! Posez-moi vos questions." }, pageAccessToken);
+      saveState(activeUsers);
+      return await sendMessage(senderId, { text: "🧪 Senku est activé ! Posez-moi vos questions." }, pageAccessToken);
     }
 
     if (command === "senku off") {
       delete activeUsers[senderId];
-      return await sendMessage(senderId, { text: "🛑 Senku est maintenant désactivé." }, pageAccessToken);
+      saveState(activeUsers);
+      return await sendMessage(senderId, { text: "🛑 Senku est désactivé." }, pageAccessToken);
     }
 
     if (!activeUsers[senderId]) return;
