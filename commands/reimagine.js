@@ -1,30 +1,31 @@
 const axios = require('axios');
 const { sendMessage } = require('../handles/sendMessage');
-const fs = require('fs');
-
-const token = fs.readFileSync('token.txt', 'utf8').trim();
 
 module.exports = {
   name: 'reimagine',
-  description: "Transforme une image avec Reimagine.",
-  author: 'Arn & coffee',
+  description: "Modifie une image existante avec l'IA",
+  usage: 'reimagine [image_url]',
+  author: 'Stanley',
 
-  async execute(senderId, args) {
-    const pageAccessToken = token;
-    const imageUrl = args[0];
-
-    if (!imageUrl) {
-      return await sendMessage(senderId, { text: "❌ Utilisation : !reimagine [URL de l'image]" }, pageAccessToken);
+  async execute(senderId, args, pageAccessToken) {
+    if (!args || args.length === 0) {
+      await sendMessage(senderId, {
+        text: '❌ Veuillez fournir l’URL d’une image.\n\n𝗘𝘅𝗮𝗺𝗽𝗹𝗲: reimagine https://example.com/image.jpg'
+      }, pageAccessToken);
+      return;
     }
 
+    const imageUrl = args[0];
     const apiUrl = `https://kaiz-apis.gleeze.com/api/reimagine?url=${encodeURIComponent(imageUrl)}`;
+
+    await sendMessage(senderId, { text: '♻️ Modification en cours...' }, pageAccessToken);
 
     try {
       const { data } = await axios.get(apiUrl);
-      await sendMessage(senderId, { text: `🔄 Image transformée : ${data.link}` }, pageAccessToken);
+      await sendMessage(senderId, { text: `🔄 Image modifiée : ${data.url}` }, pageAccessToken);
     } catch (error) {
-      console.error('❌ Erreur API Reimagine:', error.message);
-      await sendMessage(senderId, { text: "⚠️ Une erreur s'est produite avec Reimagine." }, pageAccessToken);
+      console.error('Erreur API Reimagine:', error);
+      await sendMessage(senderId, { text: "❌ Erreur lors de la modification de l’image." }, pageAccessToken);
     }
-  },
+  }
 };

@@ -1,30 +1,31 @@
 const axios = require('axios');
 const { sendMessage } = require('../handles/sendMessage');
-const fs = require('fs');
-
-const token = fs.readFileSync('token.txt', 'utf8').trim();
 
 module.exports = {
   name: 'tinyurl',
-  description: "Raccourcit une URL avec TinyURL.",
-  author: 'Arn & coffee',
+  description: "Réduit une URL avec TinyURL",
+  usage: 'tinyurl [url]',
+  author: 'Stanley',
 
-  async execute(senderId, args) {
-    const pageAccessToken = token;
-    const longUrl = args[0];
-
-    if (!longUrl) {
-      return await sendMessage(senderId, { text: "❌ Utilisation : !tinyurl [URL longue]" }, pageAccessToken);
+  async execute(senderId, args, pageAccessToken) {
+    if (!args || args.length === 0) {
+      await sendMessage(senderId, {
+        text: '❌ Veuillez fournir une URL à raccourcir.\n\n𝗘𝘅𝗮𝗺𝗽𝗹𝗲: tinyurl https://example.com'
+      }, pageAccessToken);
+      return;
     }
 
-    const apiUrl = `https://kaiz-apis.gleeze.com/api/tinyurl?upload=${encodeURIComponent(longUrl)}`;
+    const url = args[0];
+    const apiUrl = `https://kaiz-apis.gleeze.com/api/tinyurl?upload=${encodeURIComponent(url)}`;
+
+    await sendMessage(senderId, { text: '♻️ Raccourcissement en cours...' }, pageAccessToken);
 
     try {
       const { data } = await axios.get(apiUrl);
-      await sendMessage(senderId, { text: `🔗 URL raccourcie : ${data.shortUrl}` }, pageAccessToken);
+      await sendMessage(senderId, { text: `🔗 URL raccourcie : ${data.short_url}` }, pageAccessToken);
     } catch (error) {
-      console.error('❌ Erreur API TinyURL:', error.message);
-      await sendMessage(senderId, { text: "⚠️ Une erreur s'est produite avec TinyURL." }, pageAccessToken);
+      console.error('Erreur API TinyURL:', error);
+      await sendMessage(senderId, { text: "❌ Erreur lors de la réduction de l’URL." }, pageAccessToken);
     }
-  },
+  }
 };
