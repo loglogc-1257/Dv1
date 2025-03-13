@@ -1,48 +1,60 @@
 const axios = require('axios');
-const fs = require('fs');
 const { sendMessage } = require('../handles/sendMessage');
+const fs = require('fs');
 
-const token = fs.readFileSync('token.txt', 'utf8');
+const token = fs.readFileSync('token.txt', 'utf8').trim();
+const chatHistory = {}; // Stocke l'historique des conversations par utilisateur
 
 module.exports = {
   name: 'gpt',
-  description: 'Interact with the GPT-4o API',
-  usage: '-gpt [hello!]',
-  author: 'coffee',
+  description: 'Posez vos questions à GPT-4o.',
+  author: 'Arn & coffee',
 
   async execute(senderId, args) {
-    const input = this.parseInput(args);
-    if (!input) {
-      return await this.sendError(senderId, 'Error: Missing input!');
+    const pageAccessToken = token;
+    const query = args.join(" ").trim();
+
+    if (!query) {
+      return sendMessage(senderId, {
+        text: "🤖 GPT-4o est prêt à répondre à toutes vos questions ! Posez-moi n'importe quoi et je vous répondrai immédiatement. 🚀"
+      }, pageAccessToken);
     }
 
-    try {
-      const response = await this.fetchGPT4OResponse(input);
-      await sendMessage(senderId, { text: this.formatResponse(response) }, token);
-    } catch (error) {
-      console.error('Error processing input:', error);
-      await this.sendError(senderId, 'Error: Unexpected error occurred while processing the input.');
-    }
+    // Envoyer la question à l'API GPT-4o
+    handleGPTResponse(senderId, query, pageAccessToken);
   },
+};
 
-  parseInput(args) {
-    return Array.isArray(args) && args.length > 0 ? args.join(' ').trim() : null;
-  },
+const handleGPTResponse = async (senderId, input, pageAccessToken) => {
+  const apiUrl = "https://kaiz-apis.gleeze.com/api/gpt-4o";
 
-  async fetchGPT4OResponse(input) {
-    const apiUrl = `https://appjonellccapis.zapto.org/api/gpt4o?ask=${encodeURIComponent(input)}&id=1`;
-    const { data } = await axios.get(apiUrl);
-    return data;
-  },
-
-  formatResponse(data) {
-    if (data.status) {
-      return `🗨️ | 𝙶𝙿𝚃 [㊗️] \n・───────────・\n${data.response || 'No response provided.'}\n・──── >ᴗ< ────・`;
-    }
-    return 'Error: Unable to fetch response.';
-  },
-
-  async sendError(senderId, errorMessage) {
-    await sendMessage(senderId, { text: errorMessage }, token);
+  if (!chatHistory[senderId]) {
+    chatHistory[senderId] = [
+      { role: "system", content: "Tu es un assistant utile et intelligent." }
+    ];
   }
+
+  // Ajouter la question de l'utilisateur à l'historique
+  chatHistory[senderId].push({ role: "user", content: input });
+
+  try {
+    const { data } = await axios.get(apiUrl, { 
+      params: { ask: input, uid: senderId, webSearch: "off" } 
+    });
+
+    const response = data.response;
+
+    // Ajouter la réponse de l'IA à l'historique
+    chatHistory[senderId].push({ role: "assistant", content: response });
+
+    sendLongMessage(senderId, response, pageAccessToken);
+  } catch (error) {
+    console.error('Erreur GPT-4o:', error.message);
+    sendMessage(senderId, { text: "⚠️ Une erreur est survenue, veuillez réessayer plus tard." }, pageAccessToken);
+  }
+};
+
+// Fonction pour envoyer les messages longs sans limite de mots
+const sendLongMessage = async (senderId, message, pageAccessToken) => {
+  sendMessage(senderId, { text: message }, pageAccessToken);
 };
