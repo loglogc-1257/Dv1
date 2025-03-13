@@ -20,13 +20,13 @@ module.exports = {
       }, pageAccessToken);
     }
 
-    // Toutes les questions passent par l'API DeepSeek
+    // Toutes les questions passent par l'API
     handleChatResponse(senderId, query, pageAccessToken);
   },
 };
 
 const handleChatResponse = async (senderId, input, pageAccessToken) => {
-  const apiUrl = "https://kaiz-apis.gleeze.com/api/deepseek-v3";
+  const apiUrl = "https://kaiz-apis.gleeze.com/api/gpt-4o";
 
   if (!chatHistory[senderId]) chatHistory[senderId] = [];
 
@@ -34,7 +34,7 @@ const handleChatResponse = async (senderId, input, pageAccessToken) => {
 
   try {
     const { data } = await axios.get(apiUrl, { 
-      params: { ask: input, uid: senderId } // Adapté au format de l'API DeepSeek
+      params: { ask: input, uid: senderId, webSearch: "off" } 
     });
 
     const response = data.response;
