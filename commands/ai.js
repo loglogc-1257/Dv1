@@ -20,10 +20,7 @@ module.exports = {
       }, pageAccessToken);
     }
 
-    if (["sino creator mo?", "qui t'a créé ?"].includes(query.toLowerCase())) {
-      return sendMessage(senderId, { text: "Stanley Stawa" }, pageAccessToken);
-    }
-
+    // Toutes les questions passent par l'API
     handleChatResponse(senderId, query, pageAccessToken);
   },
 };
