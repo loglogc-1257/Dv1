@@ -6,8 +6,8 @@ const token = fs.readFileSync('token.txt', 'utf8').trim();
 const chatHistory = {}; // Stocke l'historique des conversations par utilisateur
 
 module.exports = {
-  name: 'ai',
-  description: 'Interagissez avec Orochi AI.',
+  name: 'gpt',
+  description: 'Posez vos questions à GPT-4o.',
   author: 'Arn & coffee',
 
   async execute(senderId, args) {
@@ -16,21 +16,26 @@ module.exports = {
 
     if (!query) {
       return sendMessage(senderId, {
-        text: "✨ Bonjour et bienvenue ! Posez-moi vos questions 🤖\n\nVotre satisfaction est ma priorité ! 🚀\n\n_(Édité par Stanley Stawa)_"
+        text: "🤖 GPT-4o est prêt à répondre à toutes vos questions ! Posez-moi n'importe quoi et je vous répondrai immédiatement. 🚀"
       }, pageAccessToken);
     }
 
-    // Toutes les questions passent par l'API
-    handleChatResponse(senderId, query, pageAccessToken);
+    // Envoyer la question à l'API GPT-4o
+    handleGPTResponse(senderId, query, pageAccessToken);
   },
 };
 
-const handleChatResponse = async (senderId, input, pageAccessToken) => {
+const handleGPTResponse = async (senderId, input, pageAccessToken) => {
   const apiUrl = "https://kaiz-apis.gleeze.com/api/gpt-4o";
 
-  if (!chatHistory[senderId]) chatHistory[senderId] = [];
+  if (!chatHistory[senderId]) {
+    chatHistory[senderId] = [
+      { role: "system", content: "Tu es un assistant utile et intelligent." }
+    ];
+  }
 
-  chatHistory[senderId].push({ role: "user", message: input });
+  // Ajouter la question de l'utilisateur à l'historique
+  chatHistory[senderId].push({ role: "user", content: input });
 
   try {
     const { data } = await axios.get(apiUrl, { 
@@ -39,25 +44,17 @@ const handleChatResponse = async (senderId, input, pageAccessToken) => {
 
     const response = data.response;
 
-    chatHistory[senderId].push({ role: "ai", message: response });
+    // Ajouter la réponse de l'IA à l'historique
+    chatHistory[senderId].push({ role: "assistant", content: response });
 
     sendLongMessage(senderId, response, pageAccessToken);
   } catch (error) {
-    console.error('Erreur AI:', error.message);
+    console.error('Erreur GPT-4o:', error.message);
     sendMessage(senderId, { text: "⚠️ Une erreur est survenue, veuillez réessayer plus tard." }, pageAccessToken);
   }
 };
 
-// Fonction pour gérer les messages longs sans pause
+// Fonction pour envoyer les messages longs sans limite de mots
 const sendLongMessage = async (senderId, message, pageAccessToken) => {
-  const maxLength = 9000;
-  let parts = [];
-
-  for (let i = 0; i < message.length; i += maxLength) {
-    parts.push(message.substring(i, i + maxLength));
-  }
-
-  for (const part of parts) {
-    sendMessage(senderId, { text: part }, pageAccessToken);
-  }
+  sendMessage(senderId, { text: message }, pageAccessToken);
 };
