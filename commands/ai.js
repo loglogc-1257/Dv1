@@ -1,36 +1,83 @@
 const axios = require('axios');
 const { sendMessage } = require('../handles/sendMessage');
+const fs = require('fs');
+
+const token = fs.readFileSync('token.txt', 'utf8').trim();
+const chatHistory = {}; // Stocke l'historique des conversations par utilisateur
 
 module.exports = {
   name: 'ai',
-  description: 'Interagis avec GPT-4o pour poser des questions ou discuter.',
-  usage: 'ai [message]',
-  author: 'Stanley',
+  description: 'Interagissez avec Orochi AI propulsé par GPT-4o.',
+  author: 'Stanley Stawa',
 
-  async execute(senderId, args, pageAccessToken) {
-    if (!args || args.length === 0) {
-      await sendMessage(senderId, { 
-        text: '❌ **Utilisation incorrecte !**\n\n📌 **Exemple :**\n`ai Quelle est la capitale du Japon ?`' 
-      }, pageAccessToken);
-      return;
+  async execute(senderId, args) {
+    const pageAccessToken = token;
+    const query = args.join(" ").trim();
+
+    if (!query) {
+      const defaultMessage = 
+        "✨ **Bienvenue !**\n" +
+        "Pose-moi tes questions et je ferai de mon mieux pour y répondre 🤖\n\n" +
+        "🔹 Exemples :\n" +
+        "• `ai Qui est Gojo Satoru ?`\n" +
+        "• `ai Raconte-moi une blague !`\n" +
+        "• `ai Quel est le sens de la vie ?`\n\n" +
+        "_Édité par Stanley Stawa_";
+
+      return await sendMessage(senderId, { text: defaultMessage }, pageAccessToken);
     }
 
-    const userMessage = args.join(' '); // Récupère le message complet de l'utilisateur
-    const apiUrl = `https://haji-mix.up.railway.app/api/gpt4o?ask=${encodeURIComponent(userMessage)}&uid=${senderId}`;
-
-    try {
-      // Appel à l'API GPT-4o
-      const response = await axios.get(apiUrl);
-      const aiResponse = response.data.response; // Récupération de la réponse de l'API
-
-      // Formater le message de réponse
-      const formattedResponse = `🤖 **GPT-4o - Stanley AI** 🤖\n\n💬 **Toi :** ${userMessage}\n📜 **GPT-4o :** ${aiResponse}\n\n✍️ **Réponds pour continuer la conversation !**`;
-
-      await sendMessage(senderId, { text: formattedResponse }, pageAccessToken);
-
-    } catch (error) {
-      console.error("Erreur API GPT-4o :", error);
-      await sendMessage(senderId, { text: '❌ Impossible de générer une réponse. Réessaie plus tard !' }, pageAccessToken);
+    if (["sino creator mo?", "qui t'a créé ?"].includes(query.toLowerCase())) {
+      return await sendMessage(senderId, { text: "Je suis créé par Stanley Stawa !" }, pageAccessToken);
     }
+
+    await handleChatResponse(senderId, query, pageAccessToken);
+  },
+};
+
+const handleChatResponse = async (senderId, input, pageAccessToken) => {
+  const apiUrl = "https://haji-mix.up.railway.app/api/gpt4o";
+
+  // Initialiser l'historique si l'utilisateur est nouveau
+  if (!chatHistory[senderId]) {
+    chatHistory[senderId] = [];
+  }
+
+  // Ajouter la question à l'historique
+  chatHistory[senderId].push({ role: "user", message: input });
+
+  try {
+    // Envoyer la requête à l'API GPT-4o
+    const { data } = await axios.get(apiUrl, { 
+      params: { 
+        ask: input, 
+        uid: senderId 
+      } 
+    });
+
+    const response = data.response;
+
+    // Ajouter la réponse de l'IA à l'historique
+    chatHistory[senderId].push({ role: "ai", message: response });
+
+    await sendLongMessage(senderId, response, pageAccessToken);
+  } catch (error) {
+    console.error('❌ Erreur API GPT-4o:', error.message);
+    await sendMessage(senderId, { text: "⚠️ **Erreur !** Veuillez réessayer plus tard." }, pageAccessToken);
+  }
+};
+
+// Fonction pour gérer les messages longs
+const sendLongMessage = async (senderId, message, pageAccessToken) => {
+  const maxLength = 9000; // Longueur maximale par message
+  let parts = [];
+
+  for (let i = 0; i < message.length; i += maxLength) {
+    parts.push(message.substring(i, i + maxLength));
+  }
+
+  for (let i = 0; i < parts.length; i++) {
+    await sendMessage(senderId, { text: parts[i] }, pageAccessToken);
+    await new Promise(resolve => setTimeout(resolve, 500)); // Pause de 500ms entre chaque envoi
   }
 };
