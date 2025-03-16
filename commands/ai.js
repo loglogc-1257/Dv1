@@ -3,58 +3,34 @@ const { sendMessage } = require('../handles/sendMessage');
 
 module.exports = {
   name: 'ai',
-  description: 'Interagis avec GPT-4o pour obtenir des réponses intelligentes et précises.',
-  usage: 'ai [votre question] (--no-web)',
+  description: 'Interagis avec GPT-4o pour poser des questions ou discuter.',
+  usage: 'ai [message]',
   author: 'Stanley',
 
   async execute(senderId, args, pageAccessToken) {
-    // Extraire la question et les options
-    const hasWebSearch = !args.includes('--no-web'); // Recherche web activée par défaut, sauf si --no-web est présent
-    const prompt = args.filter(arg => arg !== '--no-web').join(' ');
-
-    // Vérifier si la question est vide
-    if (!prompt) {
-      return sendMessage(senderId, { 
-        text: "❌ **Utilisation Incorrecte**\n\n📌 **Exemple :** `ai Quel est le sens de la vie ?`\n💡 **Option :** Ajoute `--no-web` pour désactiver la recherche web."
+    if (!args || args.length === 0) {
+      await sendMessage(senderId, { 
+        text: '❌ **Utilisation incorrecte !**\n\n📌 **Exemple :**\n`ai Quelle est la capitale du Japon ?`' 
       }, pageAccessToken);
+      return;
     }
 
+    const userMessage = args.join(' '); // Récupère le message complet de l'utilisateur
+    const apiUrl = `https://haji-mix.up.railway.app/api/gpt4o?ask=${encodeURIComponent(userMessage)}&uid=${senderId}`;
+
     try {
-      // URL de l'API GPT-4o
-      const apiUrl = `https://kaiz-apis.gleeze.com/api/gpt-4o`;
-      const payload = {
-        ask: prompt,
-        uid: senderId,
-        webSearch: hasWebSearch ? 'on' : 'off' // Recherche web activée par défaut
-      };
+      // Appel à l'API GPT-4o
+      const response = await axios.get(apiUrl);
+      const aiResponse = response.data.response; // Récupération de la réponse de l'API
 
-      // Appel de l'API avec POST
-      const { data } = await axios.post(apiUrl, payload, {
-        timeout: 10000 // Timeout de 10 secondes pour éviter les attentes infinies
-      });
+      // Formater le message de réponse
+      const formattedResponse = `🤖 **GPT-4o - Stanley AI** 🤖\n\n💬 **Toi :** ${userMessage}\n📜 **GPT-4o :** ${aiResponse}\n\n✍️ **Réponds pour continuer la conversation !**`;
 
-      // Vérification de la réponse
-      if (!data || !data.response) {
-        throw new Error("Réponse invalide reçue depuis l'API");
-      }
-
-      // Envoyer la réponse brute à l'utilisateur
-      await sendMessage(senderId, { text: data.response }, pageAccessToken);
+      await sendMessage(senderId, { text: formattedResponse }, pageAccessToken);
 
     } catch (error) {
-      console.error("Erreur API GPT-4o :", error.message || error);
-
-      // Gestion des erreurs spécifiques
-      let errorMessage = "❌ **Une erreur est survenue !**\n\n📌 Vérifie ta connexion Internet et réessaie plus tard.";
-      if (error.response) {
-        if (error.response.status === 429) {
-          errorMessage = "❌ **Trop de requêtes !**\n\n📌 Tu as dépassé la limite de requêtes. Réessaie dans quelques minutes.";
-        } else if (error.response.status >= 500) {
-          errorMessage = "❌ **Problème serveur !**\n\n📌 L'API est temporairement indisponible. Réessaie plus tard.";
-        }
-      }
-
-      await sendMessage(senderId, { text: errorMessage }, pageAccessToken);
+      console.error("Erreur API GPT-4o :", error);
+      await sendMessage(senderId, { text: '❌ Impossible de générer une réponse. Réessaie plus tard !' }, pageAccessToken);
     }
   }
 };
