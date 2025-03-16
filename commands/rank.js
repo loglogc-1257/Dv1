@@ -1,66 +1,62 @@
 const axios = require('axios');
-const { sendMessage } = require('../handles/sendMessage');
+const Canvas = require("canvas");
 const fs = require('fs');
+const { sendMessage } = require('../handles/sendMessage');
 
 const token = fs.readFileSync('token.txt', 'utf8').trim();
 
-// Objet pour stocker les surnoms définis par les utilisateurs
-const userNicknames = {};
+Canvas.registerFont(`${__dirname}/assets/font/BeVietnamPro-Bold.ttf`, {
+  family: "BeVietnamPro-Bold"
+});
+Canvas.registerFont(`${__dirname}/assets/font/BeVietnamPro-SemiBold.ttf`, {
+  family: "BeVietnamPro-SemiBold"
+});
 
 module.exports = {
-  name: 'rank',
-  description: "Affiche le classement d'un utilisateur.",
-  author: 'Arn & coffee',
+  name: "rank",
+  description: "Affiche le niveau et l'expérience d'un utilisateur.",
+  author: "NTKhang",
+  usage: "rank [@mention]",
+  
+  async execute(senderId, args, pageAccessToken) {
+    const userId = args.length > 0 ? args[0] : senderId;
 
-  async execute(senderId, args) {
-    const pageAccessToken = token;
+    await sendMessage(senderId, { text: "📊 Récupération des données de niveau..." }, pageAccessToken);
 
     try {
-      console.log(`🔹 Demande de classement pour ${senderId}`);
+      const response = await axios.get(`https://api.example.com/rank?userId=${userId}`);
+      const data = response.data;
 
-      // Vérifier si l'utilisateur a déjà défini un surnom
-      let nickname = userNicknames[senderId] || `Utilisateur_${senderId}`;
-
-      // Si l'utilisateur entre un pseudo avec la commande (!rank pseudo)
-      if (args.length > 0) {
-        nickname = args.join(" ").trim();
-        userNicknames[senderId] = nickname; // Sauvegarder le surnom
-        console.log(`📝 Surnom défini : ${nickname}`);
+      if (!data || !data.exp || !data.level) {
+        return await sendMessage(senderId, { text: "❌ Impossible de récupérer les informations de niveau." }, pageAccessToken);
       }
 
-      const apiUrl = "https://kaiz-apis.gleeze.com/api/rank";
-
-      // Génération de valeurs aléatoires pour le niveau et l'XP
-      const level = Math.floor(Math.random() * 200) + 1;
-      const rank = Math.floor(Math.random() * 1000) + 1;
-      const xp = Math.floor(Math.random() * 100000) + 1;
-      const requiredXP = xp + Math.floor(Math.random() * 50000) + 1000;
-      const status = "online";
-      const avatar = `https://graph.facebook.com/${senderId}/picture?type=large`; // Photo Facebook
-
-      console.log(`📡 Envoi de la requête à l'API Rank...`);
-
-      // Appel à l'API Rank
-      const response = await axios.get(apiUrl, {
-        params: { level, rank, xp, requiredXP, nickname, status, avatar }
-      });
-
-      console.log(`✔️ Réponse reçue de l'API Rank`);
-
-      // Message formaté
-      const rankMessage = 
-        `🎖️ **Rang de ${nickname}** 🎖️\n\n` +
-        `🔹 **Niveau**: ${level}\n` +
-        `🏆 **Classement**: #${rank}\n` +
-        `✨ **XP**: ${xp} / ${requiredXP}\n` +
-        `🟢 **Statut**: ${status}\n` +
-        `🖼️ **Avatar**: ${avatar}`;
-
-      await sendMessage(senderId, { text: rankMessage }, pageAccessToken);
+      const rankCard = await generateRankCard(data);
+      await sendMessage(senderId, { attachment: rankCard }, pageAccessToken);
     } catch (error) {
-      console.error('❌ Erreur Rank:', error.message);
-
-      await sendMessage(senderId, { text: "⚠️ Erreur lors de la récupération du classement. Réessayez plus tard !" }, pageAccessToken);
+      console.error("Erreur Rank:", error.message);
+      await sendMessage(senderId, { text: "❌ Une erreur est survenue lors de la récupération du niveau." }, pageAccessToken);
     }
-  },
+  }
 };
+
+async function generateRankCard({ name, exp, level, rank }) {
+  const width = 800;
+  const height = 300;
+  const canvas = Canvas.createCanvas(width, height);
+  const ctx = canvas.getContext("2d");
+
+  // Fond
+  ctx.fillStyle = "#222";
+  ctx.fillRect(0, 0, width, height);
+
+  // Texte
+  ctx.fillStyle = "#fff";
+  ctx.font = "bold 30px BeVietnamPro-Bold";
+  ctx.fillText(`👤 ${name}`, 50, 60);
+  ctx.fillText(`🏆 Rang: ${rank}`, 50, 120);
+  ctx.fillText(`📈 Niveau: ${level}`, 50, 180);
+  ctx.fillText(`⚡ Exp: ${exp}`, 50, 240);
+
+  return canvas.toBuffer();
+}
