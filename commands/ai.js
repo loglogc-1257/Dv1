@@ -3,34 +3,41 @@ const { sendMessage } = require('../handles/sendMessage');
 
 module.exports = {
   name: 'ai',
-  description: 'Interact with You-AI',
-  usage: 'gpt4 [your message]',
+  description: 'Interact with Pollinations Text API (GET prompt in URL)',
+  usage: 'gpt4 [votre message]',
   author: 'coffee',
 
   async execute(senderId, args, pageAccessToken) {
     const prompt = args.join(' ');
     if (!prompt) {
       return sendMessage(senderId, {
-        text: "Veuillez poser votre question ou tapez 'help' pour voir les autres commandes disponibles."
+        text: "❓ Veuillez poser une question ou tapez 'help' pour voir les commandes."
       }, pageAccessToken);
     }
 
     try {
-      const { data } = await axios.get(`https://kaiz-apis.gleeze.com/api/you-ai?ask=${encodeURIComponent(prompt)}&uid=${senderId}`);
-      const response = data.response;
+      const encodedPrompt = encodeURIComponent(prompt);
+      const url = `https://text.pollinations.ai/${encodedPrompt}`;
 
+      const { data } = await axios.get(url, {
+        responseType: 'text' // la réponse est du texte brut
+      });
+
+      const responseText = typeof data === 'string' ? data.trim() : 'Réponse vide.';
+
+      // Découpe en morceaux de 1800 caractères (Messenger)
       const parts = [];
-      for (let i = 0; i < response.length; i += 1800) {
-        parts.push(response.substring(i, i + 1800));
+      for (let i = 0; i < responseText.length; i += 1800) {
+        parts.push(responseText.substring(i, i + 1800));
       }
 
       for (const part of parts) {
         await sendMessage(senderId, { text: part }, pageAccessToken);
       }
-    } catch {
+    } catch (error) {
+      console.error('Erreur avec Pollinations Text API :', error.message);
       sendMessage(senderId, {
-        text: "🤖 Oups ! Une petite erreur est survenue.\n\n" +
-              "❓ Veuillez poser votre question ou tapez 'help' pour voir les autres commandes disponibles."
+        text: "🤖 Une erreur est survenue avec Pollinations AI.\nRéessayez plus tard ou posez une autre question."
       }, pageAccessToken);
     }
   }
